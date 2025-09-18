@@ -2,18 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Group Chat with Emoji</title>
+  <title>Group Chat with Emoji & Rooms</title>
   <style>
-    /* Basic reset */
     * {
       box-sizing: border-box;
     }
     body {
-   
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", "Apple Color Emoji", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      background: url('bg.jpg') no-repeat center center fixed;
+      background: url('https://getwallpapers.com/wallpaper/full/f/0/4/1416319-full-size-scenery-background-images-1920x1080.jpg') no-repeat center center fixed;
       background-size: cover;
-      margin: 0; padding: 0;
+      margin: 0;
+      padding: 0;
       display: flex;
       justify-content: center;
       align-items: flex-start;
@@ -21,7 +20,6 @@
       position: relative;
       color: white;
     }
-    /* Overlay to darken background for readability */
     body::before {
       content: "";
       position: fixed;
@@ -29,7 +27,6 @@
       background: rgba(0,0,0,0.6);
       z-index: -1;
     }
-
     #container {
       background: rgba(0,0,0,0.75);
       width: 420px;
@@ -41,13 +38,10 @@
       flex-direction: column;
       height: 600px;
     }
-
     h2 {
       margin: 0 0 20px;
       text-align: center;
     }
-
-    /* Login Form */
     #login {
       display: flex;
       flex-direction: column;
@@ -68,19 +62,12 @@
       font-weight: bold;
       border-radius: 6px;
       cursor: pointer;
-      transition: background 0.3s;
     }
-    #login button:hover {
-      background: #0056b3;
-    }
-
-    /* Chat */
     #chat {
       flex-grow: 1;
-      display: flex;
       flex-direction: column;
-      height: 100%;
       display: none;
+      height: 100%;
     }
     #messages {
       flex-grow: 1;
@@ -90,25 +77,13 @@
       margin: 0 0 10px 0;
       border-radius: 6px;
       background: rgba(255,255,255,0.1);
-      scrollbar-width: thin;
-      scrollbar-color: #007bff transparent;
     }
-    #messages::-webkit-scrollbar {
-      width: 8px;
-    }
-    #messages::-webkit-scrollbar-thumb {
-      background-color: #007bff;
-      border-radius: 4px;
-    }
-
     #messages li {
       max-width: 80%;
       margin-bottom: 10px;
       padding: 8px 14px;
       border-radius: 20px;
-      word-wrap: break-word;
       font-size: 14px;
-      line-height: 1.4;
     }
     #messages li.system {
       background: transparent;
@@ -116,20 +91,17 @@
       font-style: italic;
       text-align: center;
       max-width: 100%;
-      border-radius: 0;
-      margin-bottom: 15px;
     }
     #messages li.self {
-      background: #007bff;
-      color: white;
+      background: rgb(0,0,128);
+      color: yellow;
       align-self: flex-end;
     }
     #messages li.other {
-      background: rgba(255,255,255,0.2);
+      background: rgba(0,0,0);
       color: white;
       align-self: flex-start;
     }
-
     #inputArea {
       display: flex;
       align-items: center;
@@ -149,23 +121,6 @@
       border: none;
       cursor: pointer;
       color: white;
-      user-select: none;
-    }
-    #emojiToggle:hover {
-      color: #007bff;
-    }
-    #sendBtn {
-      background: #28a745;
-      border: none;
-      color: white;
-      font-weight: bold;
-      padding: 12px 20px;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-    #sendBtn:hover {
-      background: #1e7e34;
     }
     #emojiPicker {
       display: none;
@@ -192,21 +147,28 @@
       cursor: pointer;
       padding: 4px;
       border-radius: 6px;
-      transition: background 0.2s;
-      user-select: none;
     }
     #emojiPicker button:hover {
       background: #007bff;
       color: white;
     }
+    #sendBtn {
+      background: #28a745;
+      border: none;
+      color: white;
+      font-weight: bold;
+      padding: 12px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
   <div id="container">
-    <h2>Group Chat </h2>
-
+    <h2>Group Chat</h2>
     <div id="login">
       <input id="username" placeholder="Enter your name" autocomplete="off" />
+      <input id="room" placeholder="Enter room name" autocomplete="off" />
       <button id="joinBtn">Join Chat</button>
     </div>
 
@@ -214,7 +176,7 @@
       <ul id="messages"></ul>
       <div id="inputArea">
         <input id="messageInput" autocomplete="off" placeholder="Type a message" />
-        <button id="emojiToggle" title="Toggle Emoji Picker">😊</button>
+        <button id="emojiToggle">😊</button>
         <button id="sendBtn">Send</button>
       </div>
       <div id="emojiPicker"></div>
@@ -225,10 +187,10 @@
   <script>
     const socket = io();
 
-    // Elements
     const loginDiv = document.getElementById('login');
     const chatDiv = document.getElementById('chat');
     const usernameInput = document.getElementById('username');
+    const roomInput = document.getElementById('room');
     const joinBtn = document.getElementById('joinBtn');
     const messagesList = document.getElementById('messages');
     const messageInput = document.getElementById('messageInput');
@@ -237,8 +199,8 @@
     const emojiPicker = document.getElementById('emojiPicker');
 
     let username = '';
+    let room = '';
 
-    // Emoji list (common WhatsApp style emojis)
     const emojis = [
       "😀","😃","😄","😁","😆","😅","😂","🤣","😊","😇",
       "🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😚",
@@ -247,7 +209,6 @@
       "😖","😫","😩","🥺","😢","😭","😤","😠","😡","🤬"
     ];
 
-    // Populate emoji picker
     function createEmojiButtons() {
       emojis.forEach(emoji => {
         const btn = document.createElement('button');
@@ -263,7 +224,6 @@
     }
     createEmojiButtons();
 
-    // Insert text at cursor helper
     function insertAtCursor(input, text) {
       const start = input.selectionStart;
       const end = input.selectionEnd;
@@ -272,38 +232,31 @@
       input.selectionStart = input.selectionEnd = start + text.length;
     }
 
-    // Toggle emoji picker
     emojiToggle.addEventListener('click', () => {
-      if (emojiPicker.style.display === 'flex') {
-        emojiPicker.style.display = 'none';
-      } else {
-        emojiPicker.style.display = 'flex';
-      }
+      emojiPicker.style.display = emojiPicker.style.display === 'flex' ? 'none' : 'flex';
     });
 
-    // Hide emoji picker when clicking outside
     document.addEventListener('click', e => {
       if (!emojiPicker.contains(e.target) && e.target !== emojiToggle) {
         emojiPicker.style.display = 'none';
       }
     });
 
-    // Join chat button
     joinBtn.addEventListener('click', () => {
       const name = usernameInput.value.trim();
-      if (!name) {
-        alert('Please enter your name');
+      const roomName = roomInput.value.trim();
+      if (!name || !roomName) {
+        alert('Please enter both name and room');
         return;
       }
       username = name;
-      socket.emit('join', username);
-
+      room = roomName;
+      socket.emit('joinRoom', { username, room });
       loginDiv.style.display = 'none';
       chatDiv.style.display = 'flex';
       messageInput.focus();
     });
 
-    // Send message function
     function sendMessage() {
       const msg = messageInput.value.trim();
       if (!msg) return;
@@ -314,7 +267,6 @@
 
     sendBtn.addEventListener('click', sendMessage);
 
-    // Send message on Enter key (except shift+enter)
     messageInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -322,23 +274,19 @@
       }
     });
 
-    // Receive chat history on join
     socket.on('chatHistory', (msgs) => {
       messagesList.innerHTML = '';
       msgs.forEach(addMessage);
       scrollToBottom();
     });
 
-    // Receive new message
     socket.on('message', (msg) => {
       addMessage(msg);
       scrollToBottom();
     });
 
-    // Add message to the list
     function addMessage(msg) {
       const li = document.createElement('li');
-
       if (msg.user === 'System') {
         li.className = 'system';
         li.textContent = msg.text;
@@ -349,11 +297,9 @@
         li.className = 'other';
         li.textContent = `${msg.user}: ${msg.text}`;
       }
-
       messagesList.appendChild(li);
     }
 
-    // Auto scroll to bottom
     function scrollToBottom() {
       messagesList.scrollTo({
         top: messagesList.scrollHeight,

@@ -1,55 +1,53 @@
 const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
+
 const app = express();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http);
+const server = http.createServer(app);
+const io = socketIo(server);
 
-const PORT = process.env.PORT || 3000;
+const chatHistory = {}; // { roomName: [ { user, text } ] }
 
-// Serve static files from public folder
 app.use(express.static('public'));
 
-// Store connected users and chat messages in memory
-let users = [];
-let messages = [];
-
 io.on('connection', (socket) => {
-  let username = null;
+  socket.on('joinRoom', ({ username, room }) => {
+    socket.join(room);
+    socket.username = username;
+    socket.room = room;
 
-  socket.on('join', (name) => {
-    username = name;
-    users.push(username);
+    if (!chatHistory[room]) {
+      chatHistory[room] = [];
+    }
 
-    // Broadcast system message: user joined
-    const sysMsg = { user: 'System', text: `${username} joined the chat` };
-    messages.push(sysMsg);
+    socket.emit('chatHistory', chatHistory[room]);
 
-    // Send chat history to the new user
-    socket.emit('chatHistory', messages);
-
-    // Broadcast the system message to all others
-    socket.broadcast.emit('message', sysMsg);
+    socket.to(room).emit('message', {
+      user: 'System',
+      text: `${username} joined the room.`,
+    });
   });
 
-  socket.on('sendMessage', (msg) => {
-    if (!username) return;
-
-    const message = { user: username, text: msg };
-    messages.push(message);
-
-    io.emit('message', message);
+  socket.on('sendMessage', (text) => {
+    const msg = {
+      user: socket.username,
+      text,
+    };
+    chatHistory[socket.room].push(msg);
+    io.to(socket.room).emit('message', msg);
   });
 
   socket.on('disconnect', () => {
-    if (username) {
-      users = users.filter(u => u !== username);
-
-      const sysMsg = { user: 'System', text: `${username} left the chat` };
-      messages.push(sysMsg);
-      socket.broadcast.emit('message', sysMsg);
+    if (socket.username && socket.room) {
+      io.to(socket.room).emit('message', {
+        user: 'System',
+        text: `${socket.username} left the room.`,
+      });
     }
   });
 });
 
-http.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
 });
